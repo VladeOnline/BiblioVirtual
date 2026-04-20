@@ -88,7 +88,7 @@ const seedAdmin = async () => {
         name: 'Administrador',
         email: 'admin@bibliverse.com',
         password: hashedPassword,
-        role: 'admin'
+        role: 'admin',
       });
       console.log('Admin user created: admin@bibliverse.com / admin123');
     }

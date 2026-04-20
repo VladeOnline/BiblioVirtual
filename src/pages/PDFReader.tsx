@@ -1,14 +1,21 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { bookService } from '@/services/api';
 import { getMockBookById } from '@/hooks/useMockData';
 import type { Book } from '@/types';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Download, ZoomIn, ZoomOut, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
+import { ArrowLeft, Download, ZoomIn, ZoomOut, ChevronLeft, ChevronRight, Loader2, BookmarkPlus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Document, Page, pdfjs } from 'react-pdf';
 
-pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
+pdfjs.GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url).toString();
+
+type TextMarker = {
+  id: string;
+  pageNumber: number;
+  quote: string;
+  createdAt: string;
+};
 
 export default function PDFReader() {
   const { id } = useParams<{ id: string }>();
@@ -16,12 +23,41 @@ export default function PDFReader() {
   const [loading, setLoading] = useState(true);
   const [numPages, setNumPages] = useState(0);
   const [pageNumber, setPageNumber] = useState(1);
-  const [scale, setScale] = useState(1.2);
+  const [zoom, setZoom] = useState(1);
   const [hasError, setHasError] = useState(false);
+  const [markers, setMarkers] = useState<TextMarker[]>([]);
+  const [viewerWidth, setViewerWidth] = useState(900);
+  const viewerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (id) fetchBook(id);
   }, [id]);
+
+  useEffect(() => {
+    if (!id) return;
+    const stored = localStorage.getItem(`pdf_markers_${id}`);
+    setMarkers(stored ? JSON.parse(stored) : []);
+  }, [id]);
+
+  useEffect(() => {
+    if (!id) return;
+    localStorage.setItem(`pdf_markers_${id}`, JSON.stringify(markers));
+  }, [id, markers]);
+
+  useEffect(() => {
+    if (!viewerRef.current) return;
+
+    const updateWidth = () => {
+      const width = viewerRef.current?.clientWidth || 900;
+      setViewerWidth(Math.max(280, Math.floor(width)));
+    };
+
+    updateWidth();
+    const observer = new ResizeObserver(updateWidth);
+    observer.observe(viewerRef.current);
+
+    return () => observer.disconnect();
+  }, []);
 
   const fetchBook = async (bookId: string) => {
     try {
@@ -62,8 +98,31 @@ export default function PDFReader() {
     }
   };
 
+  const handleSaveMarker = () => {
+    const selection = window.getSelection()?.toString().trim() || '';
+    if (!selection) {
+      toast.info('Selecciona texto del PDF antes de guardar un marcador');
+      return;
+    }
+
+    const newMarker: TextMarker = {
+      id: crypto.randomUUID(),
+      pageNumber,
+      quote: selection.slice(0, 180),
+      createdAt: new Date().toISOString(),
+    };
+
+    setMarkers((prev) => [newMarker, ...prev]);
+    toast.success('Marcador guardado');
+  };
+
+  const removeMarker = (markerId: string) => {
+    setMarkers((prev) => prev.filter((m) => m.id !== markerId));
+  };
+
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
   const pdfUrl = book?.pdfUrl ? (book.pdfUrl.startsWith('http') ? book.pdfUrl : `${API_URL}${book.pdfUrl}`) : '';
+  const renderWidth = Math.floor(Math.min(980, viewerWidth - 32) * zoom);
 
   if (loading) {
     return (
@@ -96,12 +155,15 @@ export default function PDFReader() {
             <h1 className="font-semibold truncate max-w-xs md:max-w-md">{book.title}</h1>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" onClick={() => setScale(s => Math.max(0.5, s - 0.1))} className="text-slate-300 hover:text-white hover:bg-slate-700">
+            <Button variant="ghost" size="sm" onClick={() => setZoom((s) => Math.max(0.6, s - 0.1))} className="text-slate-300 hover:text-white hover:bg-slate-700">
               <ZoomOut className="h-4 w-4" />
             </Button>
-            <span className="text-sm text-slate-400 w-12 text-center">{Math.round(scale * 100)}%</span>
-            <Button variant="ghost" size="sm" onClick={() => setScale(s => Math.min(2.5, s + 0.1))} className="text-slate-300 hover:text-white hover:bg-slate-700">
+            <span className="text-sm text-slate-400 w-12 text-center">{Math.round(zoom * 100)}%</span>
+            <Button variant="ghost" size="sm" onClick={() => setZoom((s) => Math.min(2.2, s + 0.1))} className="text-slate-300 hover:text-white hover:bg-slate-700">
               <ZoomIn className="h-4 w-4" />
+            </Button>
+            <Button variant="ghost" size="sm" onClick={handleSaveMarker} className="text-slate-300 hover:text-white hover:bg-slate-700">
+              <BookmarkPlus className="h-4 w-4" />
             </Button>
             <Button variant="ghost" size="sm" onClick={handleDownload} className="text-slate-300 hover:text-white hover:bg-slate-700">
               <Download className="h-4 w-4" />
@@ -111,7 +173,7 @@ export default function PDFReader() {
       </div>
 
       {/* PDF Viewer */}
-      <div className="max-w-5xl mx-auto py-8 px-4">
+      <div ref={viewerRef} className="max-w-5xl mx-auto py-8 px-4">
         {hasError || !pdfUrl ? (
           <div className="text-center py-20">
             <p className="text-slate-400 mb-4">
@@ -123,7 +185,7 @@ export default function PDFReader() {
             </Button>
           </div>
         ) : (
-          <div className="flex justify-center">
+          <div className="overflow-x-auto flex justify-center">
             <Document
               file={pdfUrl}
               onLoadSuccess={onDocumentLoadSuccess}
@@ -136,7 +198,7 @@ export default function PDFReader() {
             >
               <Page
                 pageNumber={pageNumber}
-                scale={scale}
+                width={renderWidth}
                 renderTextLayer
                 renderAnnotationLayer
                 className="shadow-2xl"
@@ -169,6 +231,29 @@ export default function PDFReader() {
             >
               <ChevronRight className="h-4 w-4" />
             </Button>
+          </div>
+        )}
+
+        {markers.length > 0 && (
+          <div className="mt-8 bg-slate-800/70 border border-slate-700 rounded-lg p-4">
+            <h3 className="font-semibold mb-3">Marcadores ({markers.length})</h3>
+            <div className="space-y-2">
+              {markers.map((marker) => (
+                <div key={marker.id} className="flex items-center justify-between gap-3 bg-slate-900/70 rounded-md p-3">
+                  <button
+                    type="button"
+                    className="text-left text-sm text-slate-200 hover:text-white"
+                    onClick={() => setPageNumber(marker.pageNumber)}
+                  >
+                    <span className="text-amber-400 font-medium">Pag. {marker.pageNumber}:</span>{' '}
+                    {marker.quote}
+                  </button>
+                  <Button variant="ghost" size="sm" onClick={() => removeMarker(marker.id)} className="text-red-400 hover:text-red-300 hover:bg-red-900/30">
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </div>

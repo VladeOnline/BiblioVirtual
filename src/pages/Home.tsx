@@ -1,8 +1,11 @@
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { BookOpen, Library, Sparkles, ArrowRight } from 'lucide-react';
+import { useAuth } from '@/context/AuthContext';
 
 export default function Home() {
+  const { user } = useAuth();
+
   return (
     <div className="min-h-[calc(100vh-64px)]">
       {/* Hero Section */}
@@ -25,7 +28,7 @@ export default function Home() {
               </Button>
             </Link>
             <Link to="/mangas">
-              <Button size="lg" variant="outline" className="border-slate-600 text-white hover:bg-slate-800 px-8">
+              <Button size="lg" className="bg-sky-500 hover:bg-sky-600 text-white font-bold px-8">
                 <Sparkles className="h-5 w-5 mr-2" />
                 Explorar Mangas
               </Button>
@@ -59,18 +62,22 @@ export default function Home() {
       </section>
 
       {/* CTA Section */}
-      <section className="py-16 px-4 bg-slate-100">
-        <div className="max-w-4xl mx-auto text-center space-y-6">
-          <h2 className="text-3xl font-bold text-slate-900">¿Comenzar a leer?</h2>
-          <p className="text-slate-600">Registrate gratis y accede a todo nuestro contenido.</p>
-          <Link to="/register">
-            <Button size="lg" className="bg-amber-500 hover:bg-amber-600 text-slate-900 font-bold">
-              Crear Cuenta Gratis
-              <ArrowRight className="h-5 w-5 ml-2" />
-            </Button>
-          </Link>
-        </div>
-      </section>
+      {!user && (
+        <section className="py-16 px-4 bg-slate-100">
+          <div className="max-w-4xl mx-auto text-center space-y-6">
+            <h2 className="text-3xl font-bold text-slate-900">¿Comenzar a leer?</h2>
+            <p className="text-slate-600">Registrate gratis y accede a todo nuestro contenido.</p>
+            <div className="pt-3">
+              <Link to="/register">
+                <Button size="lg" className="bg-amber-500 hover:bg-amber-600 text-slate-900 font-bold">
+                  Crear Cuenta Gratis
+                  <ArrowRight className="h-5 w-5 ml-2" />
+                </Button>
+              </Link>
+            </div>
+          </div>
+        </section>
+      )}
     </div>
   );
 }
