@@ -1,5 +1,6 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { BackendStatusProvider } from './context/BackendStatusContext';
 import { Toaster } from '@/components/ui/sonner';
 import Navbar from './components/Navbar';
 import Home from './pages/Home';
@@ -64,9 +65,11 @@ function AppRoutes() {
 
 export default function App() {
   return (
-    <AuthProvider>
-      <AppRoutes />
-      <Toaster position="top-right" richColors />
-    </AuthProvider>
+    <BackendStatusProvider>
+      <AuthProvider>
+        <AppRoutes />
+        <Toaster position="top-right" richColors />
+      </AuthProvider>
+    </BackendStatusProvider>
   );
 }

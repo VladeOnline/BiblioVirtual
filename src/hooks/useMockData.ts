@@ -1,31 +1,9 @@
-import { useState, useEffect } from 'react';
 import { mockBooks, mockMangas, mockChapters } from '@/services/mockData';
+import { useBackendStatus } from '@/context/BackendStatusContext';
 import type { Book, Manga, Chapter } from '@/types';
 
-let backendAvailable: boolean | null = null;
-
 export function useMockData() {
-  const [isMock, setIsMock] = useState(backendAvailable === false);
-
-  useEffect(() => {
-    if (backendAvailable !== null) {
-      setIsMock(!backendAvailable);
-      return;
-    }
-
-    // Check if backend is available
-    fetch('/api/health', { method: 'GET', signal: AbortSignal.timeout(2000) })
-      .then(() => {
-        backendAvailable = true;
-        setIsMock(false);
-      })
-      .catch(() => {
-        backendAvailable = false;
-        setIsMock(true);
-        console.log('Backend not available, using mock data');
-      });
-  }, []);
-
+  const { isMock } = useBackendStatus();
   return { isMock, mockBooks, mockMangas, mockChapters };
 }
 
